@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>豪华单机俄罗斯方块</title>
+    <meta charset="utf-8">
+    <style>
+        #stage {
+            width: 360px;
+            height: 600px;
+            background-color: lightgray;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 5px 5px 5px #666;
+        }
+        #score {
+            width: 100%;
+            height: 50px;
+            text-align: center;
+            font-size: 36px;
+            line-height: 50px;
+            color: #fff;
+            background-color: #333;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">0</div>
+    <div id="stage"></div>
+
+    <!-- 游戏说明模态框 -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>游戏说明</h2>
+            <p>本游戏前四种方块由<strong>I，L，O和T</strong>的形状组成，每个方块由四个小正方形组成。</p>
+            <p>按下<kbd>上箭头</kbd>或<kbd>W</kbd>键顺时针旋转当前方块。</p>
+            <p>按下<kbd>下箭头</kbd>或<kbd>S</kbd>键加速下落。</p>
+            <p>按下<kbd>左箭头</kbd>或<kbd>A</kbd>键向左移动方块。</p>
+            <p>按下<kbd>右箭头</kbd>或<kbd>D</kbd>键向右移动方块。</p>
+            <p>当一整行都被填满时，该行将会消除得分并增加。</p>
+        </div>
+    </div>
+
+    <script>
+        var stageWidth = 10; // 舞台宽度
+        var stageHeight = 20; // 舞台高度
+        var squareWidth = 36; // 方块宽度
+        var squareMap = []; // 方块地图
+        var currentSquare = []; // 当前正在下落的方块
+        var nextSquare = []; // 下一个方块
+        var score = 0; // 游戏得分
+
+        var shapes = [
+            [
+                [1, 1, 1, 1]
+            ],
+            [
+                [1, 1, 1],
+                [0, 1, 0]
+            ],
+            [
+                [0, 1, 1],
+                [1, 1, 0]
+            ],
+            [
+                [1, 1, 0],
+                [0, 1, 1]
+            ],
+            [
+                [1, 0, 0],
+                [1, 1, 1]
+            ],
+            [
+                [0, 0, 1],
+                [1, 1, 1]
+            ],
+            [
+                [1, 1],
+                [1, 1]
+            ]
+        ]; // 基本形状
+
+        var colors = [
+            "#F44336", // 红色
+            "#3F51B5", // 蓝色
+            "#4CAF50", // 绿色
+            "#FFC107", // 橙色
+            "#9C27B0", // 紫色
+            "#009688", // 青色
+            "#FF5722" // 深橙色
+        ]; // 方块颜色
+
+        function init() {
+            // 初始化方块地图
+            for (var i = 0; i < stageHeight; i++) {
+                squareMap[i] = [];
+                for (var j = 0; j < stageWidth; j++) {
+                    squareMap[i][j] = 0;
+                }
+            }
+
+            // 随机产生下一个方块
+            generateNextSquare();
+
+            // 绑定事件
+            document.onkeydown = function(event) {
+                switch (event.keyCode) {
+                    case 65: // A
+                    case 37: // 左箭头
+                        moveLeft();
+                        break;
+                    case 68: // D
+                    case 39: // 右箭头
+                        moveRight();
+                        break;
+                    case 83: // S
+                    case 40: // 下箭头
+                        moveDown();
+                        break;
+                    case 87: // W
+                    case 38: // 上箭头
+                        rotate();
+                        break;
+                    default:
+                        break;
+                }
+            };
+
+            // 显示游戏说明模态框
+            var modal = document.getElementById("modal");
+            var closeButton = document.getElementsByClassName("close")[0];
+            closeButton.onclick = function() {
+                modal.style.display = "none";
+            };
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            };
+            modal.style.display = "block";
+
+            // 开始游戏循环
+            setInterval(gameLoop, 500);
+        }
+
+        function generateNextSquare() {
+            var shape = shapes[Math.floor(Math.random() * shapes.length)];
+            var color = colors[Math.floor(Math.random() * colors.length)];
+            nextSquare = {
+                shape: shape,
+                color: color,
+                top: 1,
+                left: Math.floor((stageWidth - shape[0].length) / 2)
+            };
+        }
+
+        function generateSquare() {
+            currentSquare = nextSquare;
+            generateNextSquare();
+        }
+
+        function moveLeft() {
+            if (canMove(-1, 0)) {
+                currentSquare.left--;
+            }
+        }
+
+        function moveRight() {
+            if (canMove(1, 0)) {
+                currentSquare.left++;
+            }
+        }
+
+        function moveDown() {
+            if (canMove(0, 1)) {
+                currentSquare.top++;
+            } else {
+                fixSquare(); // 将方块固定到地图上
+                checkLines(); // 检查是否有可以消除的行
+                generateSquare(); // 随机产生下一个方块
+                if (!canMove(0, 0)) {
+                    alert("游戏结束！你的得分是：" + score);
+                    location.reload();
+                }
+            }
+        }
+
+        function rotate() {
+            var newShape = [];
+            for (var i = 0; i < currentSquare.shape[0].length; i++) {
+                newShape[i] = [];
+                for (var j = 0; j < currentSquare.shape.length; j++) {
+                    newShape[i][j] = currentSquare.shape[currentSquare.shape.length - 1 - j][i];
+                }
+            }
+            if (canRotate(newShape)) {
+                currentSquare.shape = newShape;
+            }
+        }
+
+        function canMove(deltaLeft, deltaTop) {
+            var left = currentSquare.left + deltaLeft;
+            var top = currentSquare.top + deltaTop;
+            for (var i = 0; i < currentSquare.shape.length; i++) {
+                for (var j = 0; j < currentSquare.shape[i].length; j++) {
+                    if (currentSquare.shape[i][j] != 0) {
+                        var x = left + j;
+                        var y = top + i;
+                        if (x < 0 || x >= stageWidth || y >= stageHeight || (y >= 0 && squareMap[y][x] != 0)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        function canRotate(newShape) {
+            for (var i = 0; i < newShape.length; i++) {
+                for (var j = 0; j < newShape[i].length; j++) {
+                    if (newShape[i][j] != 0) {
+                        var x = currentSquare.left + j;
+                        var y = currentSquare.top + i;
+                        if (x < 0 || x >= stageWidth || y >= stageHeight || (y >= 0 && squareMap[y][x] != 0)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        function fixSquare() {
+            for (var i = 0; i < currentSquare.shape.length; i++) {
+                for (var j = 0; j < currentSquare.shape[i].length; j++) {
+                    if (currentSquare.shape[i][j] != 0) {
+                        var x = currentSquare.left + j;
+                        var y = currentSquare.top + i;
+                        squareMap[y][x] = currentSquare.color;
+                    }
+                }
+            }
+        }
+
+        function checkLines() {
+            var lines = 0;
+            for (var i = 0; i < squareMap.length; i++) {
+                var full = true;
+                for (var j = 0; j < squareMap[i].length; j++) {
+                    if (squareMap[i][j] == 0) {
+                        full = false;
+                        break;
+                    }
+                }
+                if (full) {
+                    squareMap.splice(i, 1); // 删除一整行方块
+                    squareMap.unshift(new Array(stageWidth).fill(0)); // 在顶部添加新的一行方块
+                    lines++; // 增加得分
+                }
+            }
+            if (lines > 0) {
+                score += parseInt(Math.pow(2, lines - 1) * 100); // 根据消除的行数增加得分（2的n-1次方乘以100）
+                document.getElementById("score").innerHTML = score;
+            }
+        }
+
+        function drawSquare(ctx, x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x * squareWidth, y * squareWidth, squareWidth, squareWidth);
+            ctx.strokeStyle = "#fff";
+            ctx.strokeRect(x * squareWidth, y * squareWidth, squareWidth, squareWidth);
+        }
+
+        function gameLoop() {
+            var canvas = document.createElement("canvas");
+            canvas.width = stageWidth * squareWidth;
+            canvas.height = stageHeight * squareWidth;
+            var ctx = canvas.getContext("2d");
+
+            // 绘制下落方块
+            for (var i = 0; i < currentSquare.shape.length; i++) {
+                for (var j = 0; j < currentSquare.shape[i].length; j++) {
+                    if (currentSquare.shape[i][j] != 0) {
+                        drawSquare(ctx, currentSquare.left + j, currentSquare.top + i, currentSquare.color);
+                    }
+                }
+            }
+
+            // 绘制地图方块
+            for (var i = 0; i < squareMap.length; i++) {
+                for (var j = 0; j < squareMap[i].length; j++) {
+                    if (squareMap[i][j] != 0) {
+                        drawSquare(ctx, j, i, squareMap[i][j]);
+                    }
+                }
+            }
+
+            // 绘制下一个方块
+            ctx.font = "36
+            px Arial";
+            ctx.fillText("下一个方块", stageWidth * squareWidth + 20, 50);
+            for (var i = 0; i < nextSquare.shape.length; i++) {
+                for (var j = 0; j < nextSquare.shape[i].length; j++) {
+                    if (nextSquare.shape[i][j] != 0) {
+                        drawSquare(ctx, (stageWidth + j + 1), (i + 2), nextSquare.color);
+                    }
+                }
+            }
+
+            // 显示画面
+            var stage = document.getElementById("stage");
+            stage.innerHTML = "";
+            stage.appendChild(canvas);
+        }
+
+        init();
+    </script>
+</body>
+</html>
+``` 
